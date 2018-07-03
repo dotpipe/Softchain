@@ -9,4 +9,4 @@ It's a 7bit encryption using up to 64 bits.
 
 The math is something I created myself. It took me awhile to make this and I'm very proud of it. The sockets are very poorly done. I don't know what to do there. But if you can put it into a file, it'll work regardless of where you get it from. Thanks!
 
-Anthony David Puls, Jr.
+Anthony David Pulse, Jr.
