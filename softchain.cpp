@@ -22,6 +22,11 @@
 #include <set>
 #include <ctype.h>
 #include <exception>
+#include <Winsock2.h>
+#include <Winsock.h>
+#include <WS2tcpip.h>
+#include <sstream>
+
 #ifndef RAND_MAX
 RAND_MAX = 57
 #endif
@@ -71,13 +76,13 @@ class air {
 	void callMistakes(int,int);
 	bool dcmpChain(string);
 	bool airOut(fstream&);
-//	bool findWallet(long, bool);
+	long findWallet(uint32_t);
 	long countWallet(int);
 	void restoreShell();
 	void Restore(string);
 	void Backup(string);
 	void moveBackup(string, string);
-	bool newWallet(long);
+	string newWallet();
 	bool checkRemote(fstream&);
 	void remoteShell(string);
 	long cleanUpAddrs(string);
@@ -111,6 +116,23 @@ long long int air::stoh4(string lin) {
 		y = 0;
 	}
 	return q;
+}
+
+string air::newWallet()
+{
+	long count = countWallet(0);
+	srand(1);
+	string x = "";
+	uint32_t phi = 1;
+	uint32_t philo = 1;
+	for (int j = 1; x.length() < 32 ; j++)
+	{
+		x.append((size_t)1,cache[(phi + rand())%cache.length()]);
+		phi = round(1.618 * phi);
+	}
+	
+	cout << x << " ";
+	return x;
 }
 
 long air::cleanUpAddrs(string fn = "") {
@@ -192,7 +214,7 @@ void air::restoreShell() {
 	cout << "\nErasing all wallets!!\n";
 	while (cnt > go) {
 		try {
-//			findWallet(go, 1);
+			findWallet(go);
 			fstream fin (curr_wallet.c_str(), ios::in);
 			if (fin.is_open()) {
 				fin.close();
@@ -207,12 +229,12 @@ void air::restoreShell() {
 	cout << "Wallets will be restored in ascending order.";
 	while (1) {
 		string date = "";
-		cout << "\nEnter Date (YEARMMDD 8 digits) to add to repair state (0 to stop)\n> ";
+		cout << "\nEnter Date (YYYYMMDD 8 digits) to add to repair state (0 to stop)\n> ";
 		cin >> date;
 		int xm = 0;
 		if (date == "0") { }
 		else if (date.length() != 8) {
-			cout << "Date argument must be YEARMMDD (8 digits)\n";
+			cout << "Date argument must be YYYYMMDD (8 digits)\n";
 			continue;
 		}
 		for (auto r : date) {
@@ -220,7 +242,7 @@ void air::restoreShell() {
 				xm = -1;
 		}
 		if (xm == (-1)) {
-			cout << "Filename syntax error: YEARMMDD\n";
+			cout << "Filename syntax error: YYYYMMDD\n";
 			continue;
 		}
 		cout << "You Entered " << date << " Correct?\n";
@@ -299,7 +321,9 @@ void air::Restore(string n) {
 long air::countWallet(int i = 0) {
 	fstream fin (accts.c_str(), ios::in);
 	long It = 0;
-	while (1) {
+	if (!fin.is_open())
+		return 0;
+	while (fin.peek() != EOF && !fin.eof()) {
 		do {
 			if (fin.peek() == ';')
 				It++;
@@ -311,6 +335,25 @@ long air::countWallet(int i = 0) {
 		}
 		else if (fin.peek() == EOF || fin.eof()) {
 			fin.close();
+			return It;
+		}
+	}
+	return It;
+}
+
+long air::findWallet(uint32_t i) {
+	fstream fin (accts.c_str(), ios::in);
+	long It = 0;
+	if (!fin.is_open())
+		return 0;
+	while (fin.peek() != EOF && !fin.eof()) {
+		while (!fin.eof() && It < i) {
+			if (fin.peek() == ';')
+				It++;
+			fin.ignore();
+		}
+		if (fin.peek() == EOF || fin.eof()) {
+			cout << It << " Wallets Exist" << flush;
 			return It;
 		}
 	}
@@ -588,7 +631,7 @@ void air::createTransaction(string json, fstream& fout) {
 	}
 	return;
 }
-/*
+
 int main(int argc, char * argv[]) {
 	int arg = 0;
 	const char * wp = "--create-wallets";
@@ -636,7 +679,10 @@ int main(int argc, char * argv[]) {
 			fin.close();
 			exit(-1);
 		}	
-		x.createTransaction(fin,fout,m);
+		stringstream json;
+		json >> fin.rdbuf();
+		x.createTransaction(json.str(),fout);
+		json.str("");
 		fin.close();
 		fout << "Z";
 		fout.close();
@@ -654,8 +700,8 @@ int main(int argc, char * argv[]) {
 			cout << "Argument to -w must be integer";
 			exit(0);
 		}
-		x.newWallet(xm);
-		cout << xm << " Attempted Wallets Creation\n";
+		x.newWallet();
+		cout << xm << " In Attempted Wallets Created\n";
 		x.cleanUpAddrs(x.accts);
 		x.countWallet(0);
 		std::chrono::duration<double,ratio<1,1000000000>> diff = chrono::system_clock::now() - x.t0;
@@ -698,17 +744,16 @@ int main(int argc, char * argv[]) {
 		remove(x.transfile.c_str());
 	}
 	else if (argc >= 2 && strcmp(argv[arg+1],rf) == 0) {
-		int cnt = x.countWallet(1);
+		int cnt = x.countWallet();
 		int go = 0, xm = 0;
 		if (argc == 2)
 			cout << "Deleting Wallet contents...\n";
 		while (cnt > go) {
 			try {
-				x.findWallet(go, 1);
+				x.findWallet(go);
 				remove(x.curr_wallet.c_str());
 				go++;
 			} catch (exception e) {
-				printf("%e ",std::exception(e));
 				go++;
 			}
 		}
@@ -775,7 +820,7 @@ int main(int argc, char * argv[]) {
 		printf("\t%10s --backup-transactions YEARMMDD (8 digit string required as shown)\n", argv[0]);
 		printf("\t%10s --restore-mode (starts restore shell)\n", argv[0]);
 		printf("\t%10s --restore-backups (starts restore without shell from %s)\n", argv[0], x.backups.c_str());
-		printf("\t%10s --move-backup YEARMMDD (moves CURRFILE contents to YEARMMDD (8 digit string))\n", argv[0]);
+		printf("\t%10s --move-backup YYYYMMDD (moves CURRFILE contents to YYYYMMDD (8 digit string))\n", argv[0]);
 		printf("\t%10s --create-wallets N (creates N additional wallets)\n", argv[0]);
 		printf("\t%10s --disperse (issues transactions to wallets)\n", argv[0]);
 		printf("\t%10s --list-backups (lists backup files in %s)\n", argv[0], x.backups.c_str());
@@ -783,4 +828,3 @@ int main(int argc, char * argv[]) {
 	}
 	return 1;
 }
-*/
