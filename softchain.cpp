@@ -76,7 +76,7 @@ class air {
 	void callMistakes(int,int);
 	bool dcmpChain(string);
 	bool airOut(fstream&);
-	long findWallet(uint32_t);
+	string findWallet(uint32_t);
 	long countWallet(int);
 	void restoreShell();
 	void Restore(string);
@@ -122,15 +122,18 @@ string air::newWallet()
 {
 	long count = countWallet(0);
 	srand(count);
+	if (count == 0)
+		srand(13);
 	string x = "";
 	uint32_t phi = 1;
-	for (int j = 1; x.length() < 32 ; j++)
+	for (int j = 0; x.length() < 32 ; j++)
 	{
 		x.append((size_t)1,cache[(phi + rand())%cache.length()]);
 		phi = round(1.618 * phi);
 	}
-	
-	cout << x << " ";
+	fstream fout (accts.c_str(), ios::out | ios::app | ios::binary);
+	fout << x << ';';
+	fout.close();
 	return x;
 }
 
@@ -141,17 +144,17 @@ long air::cleanUpAddrs(string fn = "") {
 		fn = accts;
 	fstream fsn (fn.c_str(), ios::in);
 	long cnt = countWallet(1);
-	while (!fsn.eof()) {
+	//while (!fsn.eof()) {
 		do {
-			if (isdigit(fsn.peek()))
+			if (isprint(fsn.peek()) && fsn.peek() != ';')
 				tmpplace.append((size_t)1, fsn.get());
-			else if (fsn.peek() != ';')
+			if (fsn.peek() == ';') {
 				fsn.ignore();
+				hold.insert(tmpplace);
+				tmpplace = "";
+			}
 		} while (!fsn.eof() && fsn.peek() != ';');
-		fsn.ignore();
-		hold.insert(tmpplace);
-		tmpplace = "";
-	}
+	//}
 
 	fsn.close();
 	fsn.open(fn.c_str(), ios::out | ios::trunc);
@@ -167,7 +170,7 @@ long air::cleanUpAddrs(string fn = "") {
 void air::remoteShell(string json) {
 	fstream tokn (x.curr_wallet, ios::in | ios::out | ios::app | ios::binary);
 	if (tokn.is_open()) {
-		send(x.clntSock, json.c_str(), strlen(json.c_str()), 0);
+		send(x.clntSock, json.c_str(), (json.length()), 0);
 		checkRemote(tokn);
 		tokn.seekg(0);
 		createTransaction(json, tokn);
@@ -312,6 +315,7 @@ void air::Restore(string n) {
 	}
 	else
 		cout << "\nFile " << n << " Does not exist\n" << flush;
+
 	fin.close();
 	return;
 }
@@ -321,7 +325,7 @@ long air::countWallet(int i = 0) {
 	long It = 0;
 	if (!fin.is_open())
 		return 0;
-	while (fin.peek() != EOF && !fin.eof()) {
+	
 		do {
 			if (fin.peek() == ';')
 				It++;
@@ -335,32 +339,36 @@ long air::countWallet(int i = 0) {
 			fin.close();
 			return It;
 		}
-	}
-	return It;
 }
 
-long air::findWallet(uint32_t i) {
+string air::findWallet(uint32_t i) {
 	fstream fin (accts.c_str(), ios::in);
 	long It = 0;
 	if (!fin.is_open())
 		return 0;
-	while (fin.peek() != EOF && !fin.eof()) {
-
-		while (!fin.eof() && It < i) {
+	curr_wallet ="";
+	while (!fin.eof() && It < i) {
+		if (fin.peek() == ';')
+		{
+			It++;
+			fin.ignore();
 			if (It == i)
-				return It;
-			if (fin.peek() == ';') {
-				It++;
-				x.curr_wallet.clear();
-			}
-			x.curr_wallet += fin.get();
+				return curr_wallet;
 		}
-		if (fin.peek() == EOF || fin.eof()) {
-			printf("Your account is %s\n", x.curr_wallet);
-			return It;
+		else if (fin.peek() != ';')
+		{
+			curr_wallet.append((size_t)1,fin.get());
+		}
+		else {
+			fin.ignore();
+			curr_wallet.clear();
 		}
 	}
-	return It;
+	if (fin.peek() == EOF || fin.eof()) {
+		cout << It << " Wallets Exist" << flush;
+		return curr_wallet;
+	}
+	return curr_wallet;
 }
 
 bool air::airOut(fstream& fout) {
@@ -513,19 +521,18 @@ bool air::dcmpChain(string tmpstr = "") {
 			do {
 				line.append((size_t)1,fin.get());
 			} while ((char)fin.peek() != 'W');
-			int x = stoi(line,nullptr,10);
-			bool p = 1;
-			if (!p)
-				curr_wallet = "error_Al.log";
 			nout.close();
-
+			curr_wallet = line;	
+			if (curr_wallet.length() > 32)
+				curr_wallet = curr_wallet.substr(curr_wallet.length()-32);
 			nout.open(curr_wallet.c_str(), ios::out | ios::app);
 			nout.seekp(0);
 			if (quiet == 0)
-				cout << line << "\t\t" << curr_wallet << "\t";
+				cout << "\t\t" << curr_wallet << "\t";
 			tout.open("tmp_90.tmp", ios::out);
 			tout << nout.rdbuf();
 			line = "";
+			curr_wallet = "";
 		}
 
 		// Get transaction size in bytes
@@ -536,7 +543,7 @@ bool air::dcmpChain(string tmpstr = "") {
 				width.append((size_t)1,fin.get());
 			} while ((char)fin.peek() != 'C');
 			fin.ignore();
-			total = stoull(width,nullptr,10);
+			total = strtoull(width.c_str(),nullptr,10);
 			if (quiet == 0)
 				cout << width << endl;
 			width = "";
@@ -550,29 +557,35 @@ bool air::dcmpChain(string tmpstr = "") {
 		do {
 			a.append((size_t)1,fin.get());
 		} while (fin.peek() != 'j');
-		a1 = stoi(a,nullptr,16);
+		a1 = strtoull(a.c_str(),nullptr,16);
 		fin.ignore();
 		a = "";
 		do {
 			a.append((size_t)1,fin.get());
 		} while (fin.peek() != 'r');
-		a2 = stoi(a,nullptr,16);
+		a2 = strtoull(a.c_str(),nullptr,16);
 		fin.ignore();
 		a = "";
 		if ((char)fin.peek() == 'Z') {
 			fin.ignore();
-			MAX_Q = total - filesize;
+			airAlgo(liner);
+			callMistakes(a1,a2);
+			a2 = a1 = liner = 0;
+			nout.seekp(ios::end);
+			for (char res : results)
+				nout.put(res);
+			filesize += results.size();
 		}
-		airAlgo(liner);
-		callMistakes(a1,a2);
-		a2 = a1 = liner = 0;
-		line = "";
-		nout.seekp(ios::end);
-		for (char res : results)
-			nout.put(res);
-
-		filesize += MAX_Q;
-		results.clear();
+		else {
+			airAlgo(liner);
+			callMistakes(a1,a2);
+			a2 = a1 = liner = 0;
+			line = "";
+			nout.seekp(ios::end);
+			for (char res : results)
+				nout.put(res);
+			filesize += results.size();
+		}
 		if (filesize == total) {
 			tout.seekg(0);
 			nout.seekp(ios::end);
@@ -580,9 +593,9 @@ bool air::dcmpChain(string tmpstr = "") {
 			//nout << endl;
 			tout.close();
 			tout.open ("tmp_90.tmp", ios::out | ios::in | ios::trunc);
-			tout << "";
 			MAX_Q = MAX_ALL;
 		}
+		results.clear();
 	}
 	fin.close();
 	tout.close();
@@ -599,7 +612,7 @@ void air::createTransaction(string json, fstream& fout) {
 	long smtc = json.length();
 	auto system_start = chrono::system_clock::now();
 	int v = 0, i = 0;
-	fout << 'W' << smtc << 'C';
+	fout << smtc << 'C';
 
 	do {
 	// I need readsome here! //
@@ -666,7 +679,7 @@ int main(int argc, char * argv[]) {
 				xm = -1;
 		}
 		if (xm != (-1))
-			xm = stoi(m,nullptr,10);
+			xm = strtoull(m.c_str(),nullptr,10);
 		else {
 			cout << "Arguments to -c must be \"file.ext\" int";
 			exit(0);
@@ -683,30 +696,38 @@ int main(int argc, char * argv[]) {
 			exit(-1);
 		}	
 		stringstream json;
-		json >> fin.rdbuf();
+		json << fin.rdbuf();
+		fout << 'S';
+		string name = x.findWallet(xm);
+		fout << name << 'W';
 		x.createTransaction(json.str(),fout);
 		json.str("");
 		fin.close();
 		fout << "Z";
+		
 		fout.close();
 	}
 	else if (argc >= 3 && strcmp(argv[arg+1],wp) == 0) {
 		int xm = 0;
 		string m = argv[arg+2];
-		for (auto r : m) {
+		for (auto r : m) { 
 			if (!isdigit(r))
 				xm = -1;
 		}
 		if (xm != (-1))
-			xm = stoi(m,nullptr,10);
+			xm = strtoull(m.c_str(),nullptr,10);
 		else {
 			cout << "Argument to -w must be integer";
 			exit(0);
 		}
-		x.newWallet();
-		cout << xm << " In Attempted Wallets Created\n";
+		uint32_t cntNow = x.countWallet(0);
+		for (; x.countWallet(0) < cntNow + xm ; )
+		{
+			x.newWallet();
+		}
 		x.cleanUpAddrs(x.accts);
-		x.countWallet(0);
+		
+		cout << xm << " In Attempted Wallets Created\n";
 		std::chrono::duration<double,ratio<1,1000000000>> diff = chrono::system_clock::now() - x.t0;
 		auto mt = std::chrono::duration_cast<chrono::seconds>(diff);
 		cout << "\nWallets created, waxed clean of duplicates, and counted again in " << mt.count() << " seconds.";
