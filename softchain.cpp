@@ -121,10 +121,9 @@ long long int air::stoh4(string lin) {
 string air::newWallet()
 {
 	long count = countWallet(0);
-	srand(1);
+	srand(count);
 	string x = "";
 	uint32_t phi = 1;
-	uint32_t philo = 1;
 	for (int j = 1; x.length() < 32 ; j++)
 	{
 		x.append((size_t)1,cache[(phi + rand())%cache.length()]);
@@ -168,7 +167,7 @@ long air::cleanUpAddrs(string fn = "") {
 void air::remoteShell(string json) {
 	fstream tokn (x.curr_wallet, ios::in | ios::out | ios::app | ios::binary);
 	if (tokn.is_open()) {
-		send(x.clntSock, "diff", 4, 0);
+		send(x.clntSock, json.c_str(), strlen(json.c_str()), 0);
 		checkRemote(tokn);
 		tokn.seekg(0);
 		createTransaction(json, tokn);
@@ -313,7 +312,6 @@ void air::Restore(string n) {
 	}
 	else
 		cout << "\nFile " << n << " Does not exist\n" << flush;
-
 	fin.close();
 	return;
 }
@@ -347,13 +345,18 @@ long air::findWallet(uint32_t i) {
 	if (!fin.is_open())
 		return 0;
 	while (fin.peek() != EOF && !fin.eof()) {
+
 		while (!fin.eof() && It < i) {
-			if (fin.peek() == ';')
+			if (It == i)
+				return It;
+			if (fin.peek() == ';') {
 				It++;
-			fin.ignore();
+				x.curr_wallet.clear();
+			}
+			x.curr_wallet += fin.get();
 		}
 		if (fin.peek() == EOF || fin.eof()) {
-			cout << It << " Wallets Exist" << flush;
+			printf("Your account is %s\n", x.curr_wallet);
 			return It;
 		}
 	}
